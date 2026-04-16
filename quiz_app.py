@@ -78,7 +78,7 @@ def get_weighted_quiz(df, quiz_size):
 # --- 4. Sidebar (Navigator only) ---
 with st.sidebar:
     if st.session_state.current_quiz and not st.session_state.exam_complete:
-        st.write("") # Spacer instead of text
+        st.write("") 
         for i in range(len(st.session_state.current_quiz)):
             is_ans = i in st.session_state.user_answers
             label = f"✓ {i+1}" if is_ans else f" {i+1}"
@@ -89,16 +89,25 @@ with st.sidebar:
 # --- 5. Main Content ---
 if st.session_state.full_bank is None:
     st.header("Welcome to Examplify (Lorelei's Version)")
-    uploaded_file = st.file_uploader("To begin, upload your practice question bank (CSV format). Lectures will be proportionally represented in each randomized quiz.", type="csv")
+    uploaded_file = st.file_uploader("To begin, upload your practice question bank (CSV format).", type="csv")
     if uploaded_file:
         st.session_state.full_bank = pd.read_csv(uploaded_file)
         st.session_state.filename = uploaded_file.name.replace('.csv', '')
         st.rerun()
 
 elif not st.session_state.current_quiz:
-    st.header(f"{st.session_state.filename}")
-    q_size = st.number_input("Question Count:", min_value=1, max_value=len(st.session_state.full_bank), value=40)
-    if st.button("START EXAM"):
+    st.header(f"Configure: {st.session_state.filename}")
+    max_available = len(st.session_state.full_bank)
+    default_val = min(40, max_available)
+    
+    q_size = st.number_input(
+        "How many questions for this quiz?", 
+        min_value=1, 
+        max_value=max_available, 
+        value=default_val
+    )
+    
+    if st.button("START RANDOMIZED QUIZ", type="primary"):
         st.session_state.quiz_size = q_size
         st.session_state.current_quiz = get_weighted_quiz(st.session_state.full_bank, q_size)
         st.rerun()
@@ -107,23 +116,17 @@ elif not st.session_state.exam_complete:
     idx = st.session_state.idx
     q = st.session_state.current_quiz[idx]
     
-    st.markdown(f"""
-    <div class="action-bar">
-        <div style="font-weight:bold;">{st.session_state.filename}</div>
-        <div>QUESTION {idx + 1} OF {len(st.session_state.current_quiz)}</div>
-        <div style="font-size: 0.85rem; opacity: 0.7;">ID: {q.get('Topic', 'N/A')[:10]}</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    st.markdown(f"""
-        <div class="exam-workspace">
-            <div class="question-header">Question {idx + 1}</div>
-            <div class="vignette-text">{q['Question']}</div>
-        </div>
-    """, unsafe_allow_html=True)
+    # Action Bar
+    st.markdown(f'<div class="action-bar"><div style="font-weight:bold;">{st.session_state.filename}</div><div>QUESTION {idx+1} OF {len(st.session_state.current_quiz)}</div><div style="font-size:0.85rem; opacity:0.7;">ID: {q.get("Topic","N/A")[:10]}</div></div>', unsafe_allow_html=True)
     
-    st.write("") 
-
+    # Workspace
+    st.markdown(f'<div class="exam-workspace"><div class="question-header">Question {idx+1}</div><div class="vignette-text">{q["Question"]}</div></div>', unsafe_allow_html=True)
+            
+    # Image Support - Fixed width for better browser zooming
+    if 'Image_URL' in q and pd.notna(q['Image_URL']):
+        st.image(q['Image_URL'], caption=f"Figure for Question {idx+1}", width=700)
+    
+    # Options
     if idx not in st.session_state.shuffled_options_map:
         opts = [q[k] for k in ['A', 'B', 'C', 'D', 'E'] if k in q and pd.notna(q[k])]
         random.shuffle(opts)
@@ -131,11 +134,8 @@ elif not st.session_state.exam_complete:
     
     current_opts = st.session_state.shuffled_options_map[idx]
     saved_val = st.session_state.user_answers.get(idx, None)
-    
-    user_choice = st.radio("Options", current_opts, index=current_opts.index(saved_val) if saved_val in current_opts else None, key=f"r_{idx}", label_visibility="collapsed")
-    
-    if user_choice:
-        st.session_state.user_answers[idx] = user_choice
+    user_choice = st.radio("Options", current_opts, index=current_opts.index(saved_val) if saved_val in current_opts else None, key=f"r_v5_{idx}", label_visibility="collapsed")
+    if user_choice: st.session_state.user_answers[idx] = user_choice
 
     st.divider()
     b1, _, b3 = st.columns([1,1.5,1])
@@ -143,7 +143,6 @@ elif not st.session_state.exam_complete:
         st.session_state.idx -= 1; st.rerun()
     if b3.button("NEXT ➡️") and idx < len(st.session_state.current_quiz) - 1:
         st.session_state.idx += 1; st.rerun()
-    
     if st.button("🏁 FINISH & SCORE EXAM", type="primary", use_container_width=True):
         st.session_state.exam_complete = True; st.rerun()
 
